@@ -1,3 +1,5 @@
+import {campaign,MILESTONES} from "./village-model.js";
+import {villageView,mountVillage,stopVillage} from "./village.js";
 import {MODES,dateKey,moveDay,DAY,fresh,dayEvents,dayStatus,counted,metrics,validate,migrate} from "./model.js";
 
 const ICONS={
@@ -19,7 +21,7 @@ const TEXT={
   water:{name:"Вода",icon:"drop",title:"Вода.",counter:"Выпито сегодня",image:"water"}
 };
 const KEY="ritm.events.v1";
-const MODE_KEY="ritm.track.v1";
+const MODE_KEY="ritm.track.v2";
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const fmt=new Intl.NumberFormat("ru");
@@ -39,6 +41,9 @@ try {mode=localStorage.getItem(MODE_KEY);} catch {}
 if(!MODES.includes(mode)) mode="vape";
 let day=currentDay();
 let page="today";
+let region="river";
+let playBuild=false;
+let resetKind="fail";
 let toastTimer,undo,timer,liveMinute="";
 function notify(message,rollback) {
   clearTimeout(toastTimer);
@@ -49,15 +54,23 @@ function notify(message,rollback) {
 }
 function save(next,message,allowUndo=true) {
   const previous=data;
+  const before=campaign(previous);
+  const after=campaign(next);
   if(!validate(next)){notify("Проверь дату и объём записи.");return false;}
   try {localStorage.setItem(KEY,JSON.stringify(next));} catch {notify("Не удалось сохранить. Проверь хранилище браузера.");return false;}
   data=next;
+  const built=mode==="vape"&&after.stage&&after.count>before.count&&after.stage.day!==before.stage?.day;
+  if(built){
+    region=after.stage.region;
+    playBuild=true;
+  }
+  if(mode==="vape"&&after.count===0)region="river";
   render();
-  if(message) notify(message,allowUndo?()=>{if(data===next)save(previous,"Запись отменена",false);}:null);
+  if(message) notify(built?"Открыто: "+after.stage.title:message,allowUndo?()=>{if(data===next)save(previous,"Запись отменена",false);}:null);
   return true;
 }
 const button=(action,glyph,label,cls="")=>'<button type="button" data-action="'+action+'" class="btn '+cls+'">'+icon(glyph)+'<span>'+label+'</span></button>';
-const typeName=(type)=>({pass:"День подтверждён",use:TEXT[mode].use,urge:"Тяга",drink:"Вода"})[type];
+const typeName=(type)=>({pass:"День подтверждён",fail:"Неудачный день",use:TEXT[mode].use,urge:"Тяга",drink:"Вода"})[type];
 function makeEvent(type,amount=0,note="",options={}) {
   const target=options.day??(page==="today"?currentDay():day);
   const at=options.at??(target===currentDay()?Date.now():parse(target).getTime());
@@ -65,7 +78,7 @@ function makeEvent(type,amount=0,note="",options={}) {
 }
 function add(event,message) {
   const next={...data,events:[...data.events.filter(e=>e.id!==event.id),event]};
-  if(save(next,message)) {
+  if(save(next,message,event.mode!=="vape"||!["use","fail","pass"].includes(event.type))) {
     close();
     if(event.type==="drink"&&page==="today") $("main").querySelector(".hero")?.classList.add("splash");
   }
@@ -101,6 +114,7 @@ function todayView() {
   const goalText=mode==="water"&&goal?(n>=goal?"Цель достигнута":"Осталось "+fmt.format(goal-n)+" мл"):"";
   const consumed= mode==="water"?n:counted(data,mode,today,"use");
   const caption=mode==="water"?"":(m.days.filter(d=>dayStatus(data,mode,d)==="clear").length+" из 7 подтверждено");
+  if(mode==="vape")return villageView(data,region,playBuild,icon);
   return '<div class="headline"><div><h1>'+t.title+'</h1></div><button class="top-link" data-action="insights">'+icon("chart")+'<span>Прогресс</span></button></div>'+
     '<section class="hero"><div class="hero-copy"><span class="metric-label">'+t.counter+'</span><div class="metric"><b id="counter">'+value+'</b><span>'+unit+'</span></div>'+
       (note?'<p class="counter-note" id="counter-note">'+note+'</p>':'')+
@@ -116,14 +130,25 @@ function historyView() {
   const events=dayEvents(data,mode,day).sort((a,b)=>b.at-a.at);
   return subhead("Записи",t.name)+
     '<section class="panel"><div class="history-picker"><button class="chip" data-action="select-day" data-day="'+moveDay(today,-1)+'">Вчера</button><button class="chip" data-action="select-day" data-day="'+today+'">Сегодня</button><label class="date-field"><span class="sr">Дата</span><input id="pick-day" type="date" value="'+day+'" max="'+today+'"></label></div>'+
-    (mode!=="water"&&dayStatus(data,mode,day)!=="used"?'<button class="chip" data-action="pass">'+(dayStatus(data,mode,day)==="clear"?"Снять отметку":t.confirm)+'</button>':'')+' '+
+    (mode==="soda"&&dayStatus(data,mode,day)!=="used"?'<button class="chip" data-action="pass">'+(dayStatus(data,mode,day)==="clear"?"Снять отметку":t.confirm)+'</button>':'')+' '+
     '<button class="chip" data-action="record">Добавить запись</button></section>'+
     '<section class="panel entries"><h2>'+dayLabel(day)+'</h2>'+(events.length?events.map(e=>'<button class="entry" data-action="edit" data-id="'+esc(e.id)+'"><span><strong>'+typeName(e.type)+(e.type==="urge"&&e.outcome==="passed"?" прошла":"")+'</strong><small>'+fmtClock.format(e.at)+(e.note?" · "+esc(e.note):"")+'</small></span><b>'+(e.amount?fmt.format(e.amount)+" "+(mode==="water"?"мл":t.units):"")+'</b>'+icon("arrow")+'</button>').join(""):'<p class="small-note">За этот день пока нет записей.</p>')+'</section>';
 }
 function subhead(title,subtitle) {
   return '<div class="subhead"><button class="icon-btn" data-action="home" aria-label="Сегодня">'+icon("back")+'</button><div><small>'+subtitle+'</small><h1>'+title+'</h1></div></div>';
 }
+function villageInsights() {
+  const v=campaign(data);
+  const reached=MILESTONES.filter(m=>m.day<=v.count).length;
+  return subhead("Статистика","Поселение")+
+    '<div class="score-row">'+score("Подряд без вейпа",v.count+" "+dayWord(v.count))+score("Открыто этапов",reached+" из "+MILESTONES.length)+'</div>'+
+    '<section class="panel"><h2>'+(v.next?"Следующая постройка":"Кампания завершена")+'</h2><p class="small-note">'+(v.next?v.next.title+' · через '+(v.next.day-v.count)+' '+dayWord(v.next.day-v.count):'На карте праздник во всех поселениях.')+'</p></section>'+
+    (v.regions.length>1?'<section class="panel"><h2>Районы</h2><div class="district-list">'+v.regions.map(r=>'<button class="chip" data-action="region" data-id="'+r.id+'">'+r.name+'</button>').join("")+'</div></section>':'')+
+    '<details class="panel roadmap"><summary>Все этапы до года</summary>'+MILESTONES.map(m=>'<div class="roadmap-row '+(m.day<=v.count?"complete":"")+'"><span>'+m.day+' дн.</span><strong>'+m.title+'</strong>'+(m.day<=v.count?icon("check"):"")+'</div>').join("")+'</details>'+
+    '<div class="district-list">'+button("history","history","Записи")+button("settings","settings","Настройки")+'</div>';
+}
 function insightsView() {
+  if(mode==="vape")return villageInsights();
   const m=metrics(data,mode);
   const max=Math.max(1,...m.totals);
   const volume=m.totals.reduce((a,b)=>a+b,0),active=m.totals.filter(Boolean).length;
@@ -135,9 +160,22 @@ function insightsView() {
 const score=(label,n)=>'<div class="score"><small>'+label+'</small><b>'+n+'</b></div>';
 function render() {
   document.body.dataset.mode=mode;
+  document.body.dataset.village=String(mode==="vape"&&page==="today");
   $("clock").textContent=new Intl.DateTimeFormat("ru",{day:"numeric",month:"long"}).format(new Date());
   $("dock").innerHTML=MODES.map(id=>'<button type="button" data-action="mode" data-id="'+id+'" aria-current="'+(id===mode?"true":"false")+'">'+icon(TEXT[id].icon)+'<span>'+TEXT[id].name+'</span></button>').join("");
+  const focused=document.activeElement?.matches(".village-view");
   $("main").innerHTML=page==="history"?historyView():page==="insights"?insightsView():todayView();
+  const world=$("main").querySelector(".village-view");
+  if(world){
+    mountVillage(world,delta=>{
+      const regions=campaign(data).regions;
+      const index=regions.findIndex(r=>r.id===world.dataset.world);
+      const target=regions[index+delta];
+      if(target){region=target.id;render();}
+    });
+    if(focused)world.focus();
+  }else stopVillage();
+  playBuild=false;
 }
 function setPage(next) {
   page=next;
@@ -152,8 +190,15 @@ function open(title,html) {
   $("dialog").scrollTop=0;
 }
 function close() {if($("dialog").open)$("dialog").close();clearInterval(timer);}
-$("dialog").addEventListener("close",()=>clearInterval(timer));
+$("dialog").addEventListener("close",()=>{
+  clearInterval(timer);
+  if(page==="today"&&day!==currentDay()){day=currentDay();render();}
+});
 function record(entry) {
+  if(entry?.mode==="vape"&&["pass","use","fail"].includes(entry.type)){
+    open(typeName(entry.type),'<p class="small-note">'+dayLabel(entry.day)+(entry.amount?' · '+entry.amount+' '+TEXT.vape.units:'')+(entry.note?' · '+esc(entry.note):'')+'</p>');
+    return;
+  }
   const isWater=mode==="water";
   const at=entry?.at??(page==="today"||day===currentDay()?Date.now():parse(day).getTime());
   if(entry&&["pass","urge"].includes(entry.type)) {
@@ -187,6 +232,13 @@ function startTimer(b) {
     if(!seconds){clearInterval(timer);b.disabled=false;}
   },180);
 }
+function markVillage(){
+  const v=campaign(data);
+  const status={clear:"День уже отмечен.",failed:"Сегодня серия уже сброшена.",pending:"Что получилось сегодня?"}[v.today];
+  open("Отметить день",'<p class="small-note">'+status+'</p><div class="village-sheet-actions">'+
+    (v.today==="pending"?button("village-clear","check","День без вейпа","primary"):'')+
+    (v.today!=="failed"?button("village-puff","x","Затянулся","danger")+button("village-confirm-reset","x","Неудачный день","danger"):'')+'</div>');
+}
 function pass() {
   if(page==="today")day=currentDay();
   if(dayStatus(data,mode,day)==="used")return;
@@ -201,6 +253,23 @@ document.addEventListener("click",e=>{
   switch(action){
     case "mode": if(MODES.includes(id)){mode=id;try{localStorage.setItem(MODE_KEY,id);}catch{} setPage("today");}break;
     case "home":setPage("today");break;
+    case "region":region=id;setPage("today");break;
+    case "village-mark":markVillage();break;
+    case "village-clear":{
+      day=currentDay();
+      if(campaign(data).today==="pending")add(makeEvent("pass"),"День отмечен");
+      break;
+    }
+    case "village-puff":
+    case "village-confirm-reset":
+      resetKind=action==="village-puff"?"use":"fail";
+      open("Сбросить поселение?",'<p class="small-note">Серия, постройки и открытые районы обнулятся.</p><div class="village-sheet-actions">'+button("close","back","Назад")+button("village-reset","x","Сбросить прогресс","danger")+'</div>');
+      break;
+    case "village-reset":{
+      day=currentDay();
+      if(campaign(data).today!=="failed")add(makeEvent(resetKind,resetKind==="use"?1:0),"Поселение сброшено");
+      break;
+    }
     case "insights":setPage("insights");break;
     case "history":day=currentDay();setPage("history");break;
     case "history-day":day=newDay;setPage("history");break;
@@ -271,7 +340,7 @@ setInterval(()=>{
     if(page==="today"&&!$("dialog").open){day=next;render();}
     return;
   }
-  if(page==="today"&&mode!=="water"&&!$("dialog").open){
+  if(page==="today"&&mode==="soda"&&!$("dialog").open){
     const m=metrics(data,mode);
     const [v,u,n]=quitLabel(m);
     if(n!==liveMinute){liveMinute=n;const note=$("counter-note");if(note)note.textContent=n;

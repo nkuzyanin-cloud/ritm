@@ -36,3 +36,51 @@ test("corrupt histories and foreign trackers cannot be imported",()=>{
   assert.equal(validate(s),null);
   assert.equal(migrate({version:1,tracker:"unrecognized",state:{entries:[]}},fresh()),null);
 });
+
+import {campaign,construction,scenePlots,MILESTONES} from "./village-model.js";
+
+const confirmations=(n)=>Array.from({length:n},(_,i)=>make({day:moveDay(today,-i)}));
+test("a settlement grows from a single tent to multiple districts and a year finale",()=>{
+  const s=fresh();
+  assert.equal(campaign(s,today).count,0);
+  for(const [days,asset] of [[1,"camp"],[2,"frame"],[3,"house"],[14,"pier"],[30,"fountain"]]){
+    s.events=confirmations(days);
+    assert.equal(campaign(s,today).stage.day,days);
+    assert.ok(scenePlots("river",days).some(p=>p.asset===asset));
+  }
+  assert.ok(!scenePlots("river",3).some(p=>p.asset==="frame"));
+  s.events=confirmations(365);
+  assert.equal(campaign(s,today).count,365);
+  assert.equal(campaign(s,today).next,null);
+  assert.equal(campaign(s,today).regions.length,4);
+  assert.equal(MILESTONES.at(-1).day,365);
+});
+test("one puff or an unsuccessful day resets the whole world even after confirming",()=>{
+  for(const type of ["use","fail"]){
+    const s=fresh();
+    s.events=[...confirmations(365),make({type,amount:type==="use"?1:0})];
+    assert.ok(validate(s));
+    assert.equal(campaign(s,today).count,0);
+    assert.equal(campaign(s,today).today,"failed");
+    assert.equal(campaign(s,today).regions.length,1);
+    assert.deepEqual(scenePlots("river",campaign(s,today).count),[]);
+    const tomorrow=moveDay(today,1);
+    s.events.push(make({day:tomorrow}));
+    assert.equal(campaign(s,tomorrow).count,1);
+  }
+});
+test("today remains open, but skipping a full day breaks the building streak",()=>{
+  const s=fresh();
+  s.events=[make({day:yesterday}),make({day:moveDay(today,-2)})];
+  assert.equal(campaign(s,today).count,2);
+  assert.equal(campaign(s,moveDay(today,1)).count,0);
+});
+
+test("intermediate days show advancing construction before land, paths and buildings unlock",()=>{
+  assert.equal(construction("river",8).elapsed,1);
+  assert.equal(construction("river",9).elapsed,2);
+  assert.equal(construction("river",24).elapsed,3);
+  assert.equal(construction("river",59).elapsed,9);
+  assert.equal(construction("island",59),null);
+  assert.equal(construction("gardens",364).elapsed,19);
+});

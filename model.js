@@ -15,7 +15,7 @@ export function dayEvents(state, mode, day) {
 }
 export function dayStatus(state,mode,day) {
   const log=dayEvents(state,mode,day);
-  if(log.some(e=>e.type==="use")) return "used";
+  if(log.some(e=>e.type==="use"||e.type==="fail")) return "used";
   if(log.some(e=>e.type==="pass")) return "clear";
   return "empty";
 }
@@ -23,7 +23,7 @@ export function counted(state,mode,day,type) {
   return dayEvents(state,mode,day).filter(e=>e.type===type).reduce((n,e)=>n+e.amount,0);
 }
 export function elapsed(state,mode,now=Date.now()) {
-  const last=state.events.filter(e=>e.mode===mode && e.type==="use" && e.at<=now).reduce((n,e)=>Math.max(n,e.at),0);
+  const last=state.events.filter(e=>e.mode===mode && (e.type==="use"||e.type==="fail") && e.at<=now).reduce((n,e)=>Math.max(n,e.at),0);
   const start=Math.max(last,state.settings[mode].start || 0);
   return start ? Math.max(0,now-start) : null;
 }
@@ -86,7 +86,7 @@ export function validate(input) {
   const ids=new Set();
   for(const e of input.events) {
     if(!e||!short(e.id,140)||ids.has(e.id)||!MODES.includes(e.mode)||!validDay(e.day)||e.day>dateKey()||!bounded(e.at,0,Date.now())||!short(e.note,280)) return null;
-    const types=e.mode==="water"?["drink"]:e.mode==="vape"?["pass","use","urge"]:["pass","use"];
+    const types=e.mode==="water"?["drink"]:e.mode==="vape"?["pass","use","urge","fail"]:["pass","use"];
     if(!types.includes(e.type)||!Number.isInteger(e.amount)||!bounded(e.amount,["drink","use"].includes(e.type)?1:0,e.mode==="water"?5000:9999)) return null;
     if(e.type==="urge"&&!["passed","logged"].includes(e.outcome)) return null;
     ids.add(e.id);
