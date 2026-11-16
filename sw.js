@@ -1,4 +1,4 @@
-const CACHE = "ritm-shell-v5";
+const CACHE = "ritm-shell-v6";
 const SHELL = ["./","./index.html","./style.css","./app.js","./model.js","./manifest.webmanifest","./assets/icon-192.png","./assets/icon-512.png","./assets/breath.webp","./assets/citrus.webp","./assets/water.webp"];
 SHELL.push("./village-model.js","./village.js","./village-roads.js");
 SHELL.push(...["alpine","balloons","bridge","camp","construction-cover","fountain","frame","funicular","garden","gardens","greenhouse","house","island","lighthouse","market","mill","observatory","pier","river-dock","river-valley","ship","shipyard","station","theater","train","tram","tunnel","viaduct","well","wheat-field","workshop"].map(name=>"./assets/village/"+name+".webp"));

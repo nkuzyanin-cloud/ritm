@@ -70,10 +70,10 @@ export function villageView(state,region,buildFrom,icon){
   const focusPlot=[...changes.keys()].find(p=>p.x<5||p.x>95);
   return '<section class="village-view" data-world="'+place.id+'" data-days="'+progress.count+'" aria-label="'+place.name+'. Дней подряд: '+progress.count+'. '+(flank?'Долину можно прокручивать влево и вправо. ':'')+(progress.regions.length>1?'Районы: '+options+'.':'')+'" tabindex="0">'+
     '<div class="world-viewport '+(flank?"wide":"")+'" '+(focusPlot?'data-focus-x="'+focusPlot.x+'"':'')+'><div class="world-land" style="--map-width:'+(100+2*flank)+'%" aria-hidden="true">'+
-    '<img class="terrain" src="'+ASSETS+(flank?"river-valley":place.id)+'.webp" alt="" draggable="false"><canvas class="world-canvas"></canvas>'+
+    '<img class="terrain" src="'+ASSETS+(flank?"river-valley":place.id)+'.webp" alt="" draggable="false"><div class="world-works"><canvas class="world-canvas"></canvas>'+
     (work?sprite(work,null,flank):'')+
     buildings.map(plot=>sprite(plot,changes.get(plot),flank)).join("")+
-    (progress.count>=365?'<div class="festival"><i></i><i></i><i></i></div>':'')+'</div></div>'+
+    (progress.count>=365?'<div class="festival"><i></i><i></i><i></i></div>':'')+'</div></div></div>'+
     '<div class="world-footer">'+(progress.regions.length>1?'<div class="region-dots" aria-hidden="true">'+progress.regions.map((item,i)=>'<i class="'+(i===regionIndex?'active':'')+'"></i>').join("")+'</div>':'')+
     '<div class="village-actions"><button type="button" class="village-btn mark-day" data-action="village-mark">'+icon(progress.today==="clear"?"check":"plus")+'<span>'+(progress.today==="clear"?"Отмечено":"Отметить")+'</span></button><button type="button" class="village-btn village-stats" data-action="insights">'+icon("chart")+'<span>Статистика</span></button></div></div></section>';
 }
@@ -103,6 +103,23 @@ function drawStatic(ctx,scene,days,offset){
     stroke(ctx,rail.points,"#bdab87",2);
   }
 }
+
+export function revealClearedVillage(root,previous,scrollLeft){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const viewport=root.querySelector(".world-viewport");
+  const sameRegion=root.dataset.world===previous.dataset.world;
+  const oldScene=previous.querySelector(sameRegion?".world-works":".world-land");
+  if(sameRegion)viewport.scrollLeft=scrollLeft;
+  oldScene.classList.add("vanishing-scene");
+  const parent=sameRegion?viewport.querySelector(".world-land"):root;
+  parent.append(oldScene);
+  const mist=document.createElement("div");
+  mist.className="clearing-mist";
+  mist.setAttribute("aria-hidden","true");
+  root.append(mist);
+  mist.addEventListener("animationend",()=>{oldScene.remove();mist.remove();},{once:true});
+}
+
 let animation;
 let lastValleyDays=0;
 export function stopVillage(){
