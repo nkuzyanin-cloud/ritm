@@ -151,3 +151,14 @@ body[data-village=true] #toast{bottom:calc(85px + env(safe-area-inset-bottom))}
 .world-materials{position:absolute;inset:0;pointer-events:none}
 .world-materials i{position:absolute;width:11%;height:4%;background:linear-gradient(#efd194,#a67a4c);border-radius:25%;box-shadow:0 1px 2px #2e251877;transform:rotate(-15deg)}
 @keyframes village-camera{0%{transform:scale(1.025)}100%{transform:scale(1)}}
+.world-viewport{position:absolute;inset:0;overflow:hidden}
+.world-viewport.wide{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:pan-x;cursor:grab}
+.world-viewport.wide::-webkit-scrollbar{display:none}
+.world-viewport.wide.dragging{cursor:grabbing;user-select:none}
+.village-view:has(.wide){touch-action:pan-x}
+.world-viewport .world-land{width:var(--map-width,100%)}
+.world-viewport.wide .terrain{left:18.75%;right:auto;width:62.5%;mask-image:linear-gradient(to right,transparent,black 9%,black 91%,transparent)}
+.terrain-extension{position:absolute;top:0;width:24.4%;height:100%;object-fit:fill;user-select:none;pointer-events:none}
+.terrain-extension.west{left:0}
+.terrain-extension.east{right:0}
+.world-viewport.wide .world-land{background:#7f842a}

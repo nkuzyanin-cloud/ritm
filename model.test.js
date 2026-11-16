@@ -84,3 +84,32 @@ test("intermediate days show advancing construction before land, paths and build
   assert.equal(construction("island",59),null);
   assert.equal(construction("gardens",364).elapsed,19);
 });
+
+import {VALLEY_ROADS} from "./village-roads.js";
+
+test("the early roads stay unpaved and city roads reach the new lateral plots",()=>{
+  assert.ok(VALLEY_ROADS.filter(road=>road.day<=14).every(road=>road.surface===undefined));
+  const city=scenePlots("river",30);
+  assert.ok(city.some(plot=>plot.x<0));
+  assert.ok(city.some(plot=>plot.x>100));
+  assert.ok(VALLEY_ROADS.some(road=>road.points.at(-1)[0]<0));
+  assert.ok(VALLEY_ROADS.some(road=>road.surface==="stone"&&road.points.at(-1)[0]>100));
+});
+
+test("valley road centerlines stay out of the main building footprints",()=>{
+  for(const days of [6,7,10,12,14,18,21,25,30,40,50]){
+    const buildings=scenePlots("river",days).filter(p=>["house","workshop","mill","market","lighthouse"].includes(p.asset));
+    for(const road of VALLEY_ROADS.filter(r=>r.day<=days)){
+      for(let i=1;i<road.points.length;i++){
+        const [[ax,ay],[bx,by]]=road.points.slice(i-1,i+1);
+        for(let t=0;t<=1;t+=.1){
+          const x=ax+(bx-ax)*t,y=ay+(by-ay)*t;
+          for(const building of buildings){
+            const inside=Math.abs(x-building.x)<building.w*.19&&y>building.y-building.w*.20&&y<building.y-1.7;
+            assert.equal(inside,false,`Day ${days}: road enters ${building.asset} at ${x}, ${y}`);
+          }
+        }
+      }
+    }
+  }
+});

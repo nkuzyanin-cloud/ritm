@@ -1,27 +1,16 @@
 import {campaign,construction,scenePlots,REGIONS} from "./village-model.js";
+import {drawRoads,VALLEY_ROADS} from "./village-roads.js";
 
 const ASSETS="./assets/village/";
 const DIM={width:450,height:800};
+const VALLEY_FLANK=30;
+const cameraPositions=new Map();
 const RIVER=[[66,0],[64,7],[57,13],[50,21],[49,29],[53,36],[53,43],[50,53],[51,59],[58,65],[61,74],[61,81],[63,90],[62,100]];
 const SCENES={
   river:{
     water:RIVER, spread:2.3,
-    roads:[
-      {day:6,points:[[31,100],[30,85],[34,70],[34,61],[30,54],[28,48],[26,37],[25,30]]},
-      {day:7,points:[[25,46],[34,49],[43,50]]},
-      {day:10,points:[[29,53],[38,51],[45,52]]},
-      {day:10,points:[[63,52],[70,54],[76,58]]},
-      {day:12,points:[[76,58],[76,54],[79,51],[83,48]]},
-      {day:14,points:[[76,57],[77,68],[71,75],[67,76]]},
-      {day:18,points:[[31,81],[29,82],[24,82],[24,78]]},
-      {day:21,points:[[77,54],[79,45],[78,36],[79,32]]},
-      {day:25,points:[[71,75],[73,79],[75,83],[75,86]]},
-      {day:30,points:[[77,67],[81,69],[86,65],[88,60]]},
-      {day:30,points:[[26,37],[22,34],[22,31]]},
-      {day:40,points:[[75,86],[79,88],[84,89],[86,88]]},
-      {day:50,points:[[79,33],[85,31],[87,27]]},
-    ],
-    lights:[[32,77],[34,64],[29,53],[42,54],[73,58],[76,71],[79,80],[85,64]]
+    roads:VALLEY_ROADS,
+    lights:[[41,77],[41,64],[33,52],[44,54],[70,55],[87,62],[74,79],[103,67],[121,78]]
   },
   island:{
     water:[[4,13],[3,26],[2,43],[2,55],[4,66],[15,85],[26,91],[51,96]],spread:5,
@@ -56,25 +45,29 @@ function buildingMaterials(plot){
   if(!plot.elapsed)return "";
   return '<span class="world-materials">'+Array.from({length:Math.min(plot.elapsed,15)},(_,i)=>'<i style="left:'+(18+(i%5)*13)+'%;top:'+(81+Math.floor(i/5)*6)+'%"></i>').join("")+'</span>';
 }
-function sprite(plot,isNew){
+function sprite(plot,isNew,flank){
   const {asset,x,y,w,fx}=plot;
   const known=["float","ship","train"].includes(fx)?fx:"";
   const src=asset==="foundation"?"frame":asset;
-  return '<div class="world-plot '+(isNew?"new-plot ":"")+'" style="--x:'+x+'%;--y:'+y+'%;--size:'+w+'%"><div class="plot-sprite asset-'+src+' '+known+' '+(fx??"")+' '+(asset==="foundation"?"foundation":"")+'"><img src="'+ASSETS+src+'.webp" alt="" draggable="false">'+effect(fx)+buildingMaterials(plot)+'</div></div>';
+  return '<div class="world-plot '+(isNew?"new-plot ":"")+'" style="--x:'+(x+flank)/(100+flank*2)*100+'%;--y:'+y+'%;--size:'+w/(100+flank*2)*100+'%"><div class="plot-sprite asset-'+src+' '+known+' '+(fx??"")+' '+(asset==="foundation"?"foundation":"")+'"><img src="'+ASSETS+src+'.webp" alt="" draggable="false">'+effect(fx)+buildingMaterials(plot)+'</div></div>';
 }
 export function villageView(state,region,unlocked,icon){
   const progress=campaign(state);
   const place=progress.regions.find(item=>item.id===region)??REGIONS[0];
   const latest=unlocked?progress.stage:null;
+  const flank=place.id==="river"?VALLEY_FLANK:0;
   const work=construction(place.id,progress.count);
   const buildings=scenePlots(place.id,progress.count);
   const options=progress.regions.map(r=>r.name).join(", ");
   const regionIndex=progress.regions.indexOf(place);
-  return '<section class="village-view" data-world="'+place.id+'" data-days="'+progress.count+'" aria-label="'+place.name+'. Дней подряд: '+progress.count+'. '+(progress.regions.length>1?'Доступны районы: '+options+'. Используй стрелки или свайп.':'')+'" tabindex="0">'+
-    '<div class="world-land '+(latest ? "build-camera" : "")+'" aria-hidden="true"><img class="terrain" src="'+ASSETS+place.id+'.webp" alt="" draggable="false"><canvas class="world-canvas"></canvas>'+
-    (work?sprite({...work,w:Math.min(work.w,25)*(.68+work.fraction*.32)},false):'')+
-    buildings.map(plot=>sprite(plot,latest?.plots.includes(plot)??false)).join("")+
-    (progress.count>=365?'<div class="festival"><i></i><i></i><i></i></div>':'')+'</div>'+
+  const focusPlot=latest?.plots.find(p=>p.x<5||p.x>95);
+  return '<section class="village-view" data-world="'+place.id+'" data-days="'+progress.count+'" aria-label="'+place.name+'. Дней подряд: '+progress.count+'. '+(flank?'Долину можно прокручивать влево и вправо. ':'')+(progress.regions.length>1?'Районы: '+options+'.':'')+'" tabindex="0">'+
+    '<div class="world-viewport '+(flank?"wide":"")+'" '+(focusPlot?'data-focus-x="'+focusPlot.x+'"':'')+'><div class="world-land '+(latest ? "build-camera" : "")+'" style="--map-width:'+(100+2*flank)+'%" aria-hidden="true">'+
+    (flank?'<img class="terrain-extension west" src="'+ASSETS+'river-west.webp" alt="" draggable="false"><img class="terrain-extension east" src="'+ASSETS+'river-east.webp" alt="" draggable="false">':'')+
+    '<img class="terrain" src="'+ASSETS+place.id+'.webp" alt="" draggable="false"><canvas class="world-canvas"></canvas>'+
+    (work?sprite({...work,w:Math.min(work.w,25)*(.68+work.fraction*.32)},false,flank):'')+
+    buildings.map(plot=>sprite(plot,latest?.plots.includes(plot)??false,flank)).join("")+
+    (progress.count>=365?'<div class="festival"><i></i><i></i><i></i></div>':'')+'</div></div>'+
     '<div class="world-footer">'+(progress.regions.length>1?'<div class="region-dots" aria-hidden="true">'+progress.regions.map((item,i)=>'<i class="'+(i===regionIndex?'active':'')+'"></i>').join("")+'</div>':'')+
     '<div class="village-actions"><button type="button" class="village-btn mark-day" data-action="village-mark">'+icon(progress.today==="clear"?"check":"plus")+'<span>'+(progress.today==="clear"?"Отмечено":"Отметить")+'</span></button><button type="button" class="village-btn village-stats" data-action="insights">'+icon("chart")+'<span>Статистика</span></button></div></div></section>';
 }
@@ -90,16 +83,8 @@ function pathAt(points,t){
   const [a,b]=[points[i],points[Math.min(points.length-1,i+1)]];
   return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];
 }
-function drawStatic(ctx,scene,days){
-  const roads=scene.roads.filter(road=>road.day<=days);
-  const paved=days>=30;
-  for(const road of roads)stroke(ctx,road.points,"#49402075",paved?17:12);
-  for(const road of roads)stroke(ctx,road.points,paved?"#b5a385":"#bfa16c",paved?14:9);
-  for(const road of roads)stroke(ctx,road.points,paved?"#e1c7a18b":"#dfbd8670",1.3,paved?[4,4]:[2,6]);
-  if(scene===SCENES.river&&days>=25){
-    ctx.fillStyle="#51473468";ctx.beginPath();ctx.ellipse(75*4.5,86*8,10,6,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle="#b5a385";ctx.beginPath();ctx.ellipse(75*4.5,86*8,8,4.5,0,0,Math.PI*2);ctx.fill();
-  }
+function drawStatic(ctx,scene,days,offset){
+  drawRoads(ctx,scene.roads,days,offset);
   if(scene.channel&&scene.channel.day<=days){
     stroke(ctx,scene.channel.points,"#615842",23);
     stroke(ctx,scene.channel.points,"#2d8193",17);
@@ -112,6 +97,7 @@ function drawStatic(ctx,scene,days){
   }
 }
 let animation;
+let lastValleyDays=0;
 export function stopVillage(){
   cancelAnimationFrame(animation);
 }
@@ -122,20 +108,33 @@ export function mountVillage(root,onMove){
   const canvas=root.querySelector("canvas"),ctx=canvas?.getContext("2d");
   if(!ctx||!scene)return;
   const backing=document.createElement("canvas");
+  const viewport=root.querySelector(".world-viewport");
+  const wide=viewport.classList.contains("wide");
+  const offset=wide?DIM.width*VALLEY_FLANK/100:0;
+  const sceneWidth=DIM.width+2*offset;
+  if(wide){
+    if(days===0&&lastValleyDays>0)cameraPositions.delete("river");
+    lastValleyDays=days;
+    const width=viewport.clientWidth;
+    const target=viewport.dataset.focusX;
+    viewport.scrollLeft=target?(Number(target)+VALLEY_FLANK)/100*width-width/2:(cameraPositions.get("river")??.3)*width;
+    viewport.addEventListener("scroll",()=>cameraPositions.set("river",viewport.scrollLeft/viewport.clientWidth),{passive:true});
+  }
   const dpr=Math.min(1.6,window.devicePixelRatio||1);
-  canvas.width=backing.width=DIM.width*dpr;
+  canvas.width=backing.width=sceneWidth*dpr;
   canvas.height=backing.height=DIM.height*dpr;
   ctx.scale(dpr,dpr);
   const back=backing.getContext("2d");back.scale(dpr,dpr);
-  drawStatic(back,scene,days);
+  drawStatic(back,scene,days,offset);
   const reduce=matchMedia("(prefers-reduced-motion: reduce)");
   let frame=0;
   function draw(time){
     if(frame&&time-frame<34)return;
     frame=time;
-    ctx.clearRect(0,0,DIM.width,DIM.height);
+    ctx.clearRect(0,0,sceneWidth,DIM.height);
     const animate=reduce.matches?0:time/1000;
-    ctx.drawImage(backing,0,0,DIM.width,DIM.height);
+    ctx.drawImage(backing,0,0,sceneWidth,DIM.height);
+    ctx.save();ctx.translate(offset,0);
     const water=scene.water??(scene.channel&&days>=scene.channel.day?scene.channel.points:null);
     if(water){
       ctx.lineWidth=1;
@@ -171,6 +170,7 @@ export function mountVillage(root,onMove){
         ctx.fillStyle="#ffe5ac";ctx.fillRect(x*4.5-1.5,y*8-8,3,3);
       }
     }
+    ctx.restore();
   }
   if(reduce.matches)draw(0);
   else{
@@ -178,14 +178,34 @@ export function mountVillage(root,onMove){
     animation=requestAnimationFrame(loop);
   }
   let start;
-  root.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;start=[e.clientX,e.clientY];});
-  root.addEventListener("pointercancel",()=>{start=null;});
-  root.addEventListener("pointerup",e=>{
-    if(!start)return;
-    const x=e.clientX-start[0],y=e.clientY-start[1];start=null;
-    if(Math.abs(x)>45&&Math.abs(x)>Math.abs(y)*1.5)onMove(x<0?1:-1);
-  });
+  if(wide){
+    viewport.addEventListener("pointerdown",e=>{
+      if(e.pointerType!=="mouse"||e.button!==0)return;
+      e.preventDefault();
+      viewport.setPointerCapture(e.pointerId);
+      viewport.classList.add("dragging");
+      start={x:e.clientX,left:viewport.scrollLeft};
+    });
+    viewport.addEventListener("pointermove",e=>{
+      if(start)viewport.scrollLeft=start.left+start.x-e.clientX;
+    });
+    const release=()=>{start=null;viewport.classList.remove("dragging");};
+    viewport.addEventListener("lostpointercapture",release);
+    viewport.addEventListener("pointercancel",release);
+  }else{
+    root.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;start=[e.clientX,e.clientY];});
+    root.addEventListener("pointercancel",()=>{start=null;});
+    root.addEventListener("pointerup",e=>{
+      if(!start)return;
+      const x=e.clientX-start[0],y=e.clientY-start[1];start=null;
+      if(Math.abs(x)>45&&Math.abs(x)>Math.abs(y)*1.5)onMove(x<0?1:-1);
+    });
+  }
   root.addEventListener("keydown",e=>{
-    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){e.preventDefault();onMove(e.key==="ArrowRight"?1:-1);root.focus();}
+    if(!["ArrowRight","ArrowLeft"].includes(e.key))return;
+    e.preventDefault();
+    const direction=e.key==="ArrowRight"?1:-1;
+    if(wide)viewport.scrollBy({left:direction*viewport.clientWidth*.26,behavior:reduce.matches?"instant":"smooth"});
+    else onMove(direction);
   });
 }
