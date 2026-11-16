@@ -29,15 +29,16 @@ const SCENES={
     lights:[[41,80],[53,71],[62,64],[67,44],[75,80]]
   },
   alpine:{
-    roads:[{day:105,points:[[45,100],[44,88],[52,78],[49,66],[45,61],[40,58]]},{day:120,points:[[49,68],[58,66],[68,58],[74,48]]},{day:135,points:[[41,62],[32,55],[25,49]]}],
-    rail:{day:150,points:[[25,49],[32,58],[36,67],[40,81],[60,82],[78,80],[100,83]]},
+    roads:[{day:105,points:[[45,100],[44,88],[52,78],[49,66],[45,61],[40,58]]},{day:120,points:[[49,68],[58,66],[68,58],[74,48]]},{day:165,points:[[49,81],[62,80],[73,78],[81,76]]},{day:225,points:[[66,57],[74,49],[76,41],[74,39]]}],
+    rail:{day:150,points:[[24,43],[28,49],[34,59],[38,69],[42,76],[47,79],[84,79],[99,82]]},
     channel:{day:195,points:[[7,94],[23,93],[38,91],[59,90],[81,92],[99,94]]},
     lights:[[41,88],[48,72],[55,65],[65,59],[78,80],[72,88]]
   },
   gardens:{
     water:[[93,0],[91,13],[90,24],[91,35],[94,48],[96,55],[95,72],[94,84],[94,100]],spread:3,
     roads:[{day:255,points:[[20,100],[27,84],[36,70],[46,59],[56,55],[64,58],[70,68]]},{day:270,points:[[69,68],[77,72],[83,70]]},{day:300,points:[[45,60],[40,50],[37,41]]},{day:330,points:[[65,58],[70,48],[77,43]]}],
-    rail:{day:315,points:[[23,87],[35,78],[48,72],[59,71],[70,75],[78,79]]},
+    rail:{day:315,points:[[23,89],[31,82],[38,74],[67,74],[75,78],[80,83]]},
+    highRail:{day:285,points:[[12,51],[22,43],[31,41],[69,41],[76,38],[84,30]]},
     lights:[[29,85],[43,72],[54,66],[70,69],[81,73],[75,48]]
   }
 };
@@ -103,10 +104,11 @@ function drawStatic(ctx,scene,days){
     stroke(ctx,scene.channel.points,"#615842",23);
     stroke(ctx,scene.channel.points,"#2d8193",17);
   }
-  if(scene.rail&&scene.rail.day<=days){
-    stroke(ctx,scene.rail.points,"#6a5540",10);
-    stroke(ctx,scene.rail.points,"#353331",7,[2,4]);
-    stroke(ctx,scene.rail.points,"#bdab87",2);
+  for(const rail of [scene.highRail,scene.rail]){
+    if(!rail||rail.day>days)continue;
+    stroke(ctx,rail.points,"#6a5540",10);
+    stroke(ctx,rail.points,"#353331",7,[2,4]);
+    stroke(ctx,rail.points,"#bdab87",2);
   }
 }
 let animation;
