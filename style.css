@@ -100,7 +100,12 @@ body[data-village=true] #toast{bottom:calc(85px + env(safe-area-inset-bottom))}
 .plot-sprite{position:relative;width:100%}
 .plot-sprite img{display:block;width:100%;height:auto;filter:drop-shadow(3px 6px 3px #29281345);user-select:none}
 .plot-sprite.foundation{opacity:.72;transform:scaleY(.63);transform-origin:bottom}
-.new-plot .plot-sprite{animation:construction-reveal 1s cubic-bezier(.16,1,.3,1) both}
+.plot-moving{animation:move-plot 1.45s cubic-bezier(.33,.02,.28,1) both}
+.plot-moving .plot-sprite img{animation:lift-moving-plot 1.45s ease both}
+.plot-building .plot-after{animation:finish-building 2.35s linear both}
+.plot-before{position:absolute;bottom:0;left:50%;width:var(--old-size);transform:translateX(-50%);animation:retire-building 2.35s linear both}
+.plot-construction{position:absolute;bottom:-2%;left:-5%;width:110%;height:108%;object-fit:fill;filter:drop-shadow(2px 4px 2px #34242059);z-index:2;transform-origin:50% 6%;animation:raise-cover 2.35s cubic-bezier(.36,.05,.22,1) both}
+.plot-sprite.asset-river-dock img,.plot-sprite.asset-wheat-field img{filter:none}
 .plot-sprite.float{animation:village-float 8s ease-in-out infinite alternate}
 .plot-sprite.ship{animation:village-float 6s ease-in-out infinite alternate}
 .plot-sprite.train{animation:village-train 12s ease-in-out infinite alternate}
@@ -138,27 +143,24 @@ body[data-village=true] #toast{bottom:calc(85px + env(safe-area-inset-bottom))}
 @keyframes village-ripple{0%{opacity:.75;transform:scale(.25)}100%{opacity:0;transform:scale(2)}}
 @keyframes village-float{from{transform:translateY(0)}to{transform:translateY(-7px) rotate(2deg)}}
 @keyframes village-train{from{transform:translateX(-10%)}to{transform:translateX(16%)}}
-@keyframes construction-reveal{from{opacity:0;transform:translateY(-30px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes move-plot{0%{left:var(--from-x);top:var(--from-y)}100%{left:var(--x);top:var(--y)}}
+@keyframes lift-moving-plot{0%,100%{transform:translateY(0)}23%,74%{transform:translateY(-7px)}42%,58%{transform:translateY(-4px)}}
+@keyframes retire-building{0%,35%{opacity:1}36%,100%{opacity:0;visibility:hidden}}
+@keyframes finish-building{0%,36%{opacity:0}37%,100%{opacity:1}}
+@keyframes raise-cover{0%,7%{opacity:0;transform:translateY(-14%) scaleY(.14)}34%,62%{opacity:1;transform:translateY(0) scaleY(1)}87%,100%{opacity:0;transform:translateY(-21%) scaleY(.12);visibility:hidden}}
 @media(max-width:560px){body[data-village=true] .shell{width:100%}}
-@media(prefers-reduced-motion:reduce){.plot-sprite,.plot-sprite *,.festival i,.build-camera{animation:none!important}}
+@media(prefers-reduced-motion:reduce){.plot-sprite,.plot-sprite *,.festival i,.plot-moving,.plot-after{animation:none!important}.plot-before,.plot-construction{display:none}}
 .plot-sprite.asset-house .puff{left:39%;top:7%}
 .plot-sprite.asset-house .window{left:21%;top:58%}
 .plot-sprite.asset-workshop .puff{left:64%;top:8%}
 .plot-sprite.asset-workshop .window{left:54%;top:57%}
 .plot-sprite.asset-camp .flame{left:60%;top:58%}
 .plot-sprite.asset-camp .puff{left:70%;top:64%}
-.build-camera{animation:village-camera 1.5s cubic-bezier(.2,.7,.23,1) both}
 .world-materials{position:absolute;inset:0;pointer-events:none}
 .world-materials i{position:absolute;width:11%;height:4%;background:linear-gradient(#efd194,#a67a4c);border-radius:25%;box-shadow:0 1px 2px #2e251877;transform:rotate(-15deg)}
-@keyframes village-camera{0%{transform:scale(1.025)}100%{transform:scale(1)}}
 .world-viewport{position:absolute;inset:0;overflow:hidden}
 .world-viewport.wide{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:pan-x;cursor:grab}
 .world-viewport.wide::-webkit-scrollbar{display:none}
 .world-viewport.wide.dragging{cursor:grabbing;user-select:none}
 .village-view:has(.wide){touch-action:pan-x}
 .world-viewport .world-land{width:var(--map-width,100%)}
-.world-viewport.wide .terrain{left:18.75%;right:auto;width:62.5%;mask-image:linear-gradient(to right,transparent,black 9%,black 91%,transparent)}
-.terrain-extension{position:absolute;top:0;width:24.4%;height:100%;object-fit:fill;user-select:none;pointer-events:none}
-.terrain-extension.west{left:0}
-.terrain-extension.east{right:0}
-.world-viewport.wide .world-land{background:#7f842a}

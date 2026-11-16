@@ -1,34 +1,30 @@
-import {campaign,construction,scenePlots,REGIONS} from "./village-model.js";
-import {drawRoads,VALLEY_ROADS} from "./village-roads.js";
+import {campaign,construction,plotChanges,scenePlots,REGIONS} from "./village-model.js";
+import {drawFences,drawRoads,VALLEY_ROADS} from "./village-roads.js";
 
 const ASSETS="./assets/village/";
 const DIM={width:450,height:800};
 const VALLEY_FLANK=30;
 const cameraPositions=new Map();
-const RIVER=[[66,0],[64,7],[57,13],[50,21],[49,29],[53,36],[53,43],[50,53],[51,59],[58,65],[61,74],[61,81],[63,90],[62,100]];
+const RIVER=[[75,0],[67,7],[61,13],[52,21],[48,29],[52,36],[52,43],[49,53],[50,59],[56,64],[59,70],[62,76],[61,81],[62,85],[64,90],[65,95],[61,100]];
 const SCENES={
   river:{
     water:RIVER, spread:2.3,
-    roads:VALLEY_ROADS,
-    lights:[[41,77],[41,64],[33,52],[44,54],[70,55],[87,62],[74,79],[103,67],[121,78]]
+    roads:VALLEY_ROADS
   },
   island:{
     water:[[4,13],[3,26],[2,43],[2,55],[4,66],[15,85],[26,91],[51,96]],spread:5,
-    roads:[{day:70,points:[[32,81],[42,79],[51,70],[60,65]]},{day:80,points:[[55,69],[62,75],[76,82]]},{day:90,points:[[59,67],[60,58],[63,50],[67,41],[69,35]]}],
-    lights:[[41,80],[53,71],[62,64],[67,44],[75,80]]
+    roads:[{day:70,points:[[32,81],[42,79],[51,70],[60,65]]},{day:80,points:[[55,69],[62,75],[76,82]]},{day:90,points:[[59,67],[60,58],[63,50],[67,41],[69,35]]}]
   },
   alpine:{
     roads:[{day:105,points:[[45,100],[44,88],[52,78],[49,66],[45,61],[40,58]]},{day:120,points:[[49,68],[58,66],[68,58],[74,48]]},{day:165,points:[[49,81],[62,80],[73,78],[81,76]]},{day:225,points:[[66,57],[74,49],[76,41],[74,39]]}],
     rail:{day:150,points:[[24,43],[28,49],[34,59],[38,69],[42,76],[47,79],[84,79],[99,82]]},
-    channel:{day:195,points:[[7,94],[23,93],[38,91],[59,90],[81,92],[99,94]]},
-    lights:[[41,88],[48,72],[55,65],[65,59],[78,80],[72,88]]
+    channel:{day:195,points:[[7,94],[23,93],[38,91],[59,90],[81,92],[99,94]]}
   },
   gardens:{
     water:[[93,0],[91,13],[90,24],[91,35],[94,48],[96,55],[95,72],[94,84],[94,100]],spread:3,
     roads:[{day:255,points:[[20,100],[27,84],[36,70],[46,59],[56,55],[64,58],[70,68]]},{day:270,points:[[69,68],[77,72],[83,70]]},{day:300,points:[[45,60],[40,50],[37,41]]},{day:330,points:[[65,58],[70,48],[77,43]]}],
     rail:{day:315,points:[[23,89],[31,82],[38,74],[67,74],[75,78],[80,83]]},
-    highRail:{day:285,points:[[12,51],[22,43],[31,41],[69,41],[76,38],[84,30]]},
-    lights:[[29,85],[43,72],[54,66],[70,69],[81,73],[75,48]]
+    highRail:{day:285,points:[[12,51],[22,43],[31,41],[69,41],[76,38],[84,30]]}
   }
 };
 
@@ -45,28 +41,38 @@ function buildingMaterials(plot){
   if(!plot.elapsed)return "";
   return '<span class="world-materials">'+Array.from({length:Math.min(plot.elapsed,15)},(_,i)=>'<i style="left:'+(18+(i%5)*13)+'%;top:'+(81+Math.floor(i/5)*6)+'%"></i>').join("")+'</span>';
 }
-function sprite(plot,isNew,flank){
-  const {asset,x,y,w,fx}=plot;
-  const known=["float","ship","train"].includes(fx)?fx:"";
+function spriteArt(plot){
+  const {asset,fx}=plot;
   const src=asset==="foundation"?"frame":asset;
-  return '<div class="world-plot '+(isNew?"new-plot ":"")+'" style="--x:'+(x+flank)/(100+flank*2)*100+'%;--y:'+y+'%;--size:'+w/(100+flank*2)*100+'%"><div class="plot-sprite asset-'+src+' '+known+' '+(fx??"")+' '+(asset==="foundation"?"foundation":"")+'"><img src="'+ASSETS+src+'.webp" alt="" draggable="false">'+effect(fx)+buildingMaterials(plot)+'</div></div>';
+  return '<div class="plot-sprite asset-'+src+' '+(fx??"")+' '+(asset==="foundation"?"foundation":"")+'"><img src="'+ASSETS+src+'.webp" alt="" draggable="false">'+effect(fx)+buildingMaterials(plot)+'</div>';
 }
-export function villageView(state,region,unlocked,icon){
+function sprite(plot,change,flank){
+  const {x,y,w}=plot;
+  const scale=100/(100+flank*2);
+  const style='--x:'+(x+flank)*scale+'%;--y:'+y+'%;--size:'+w*scale+'%';
+  const current=spriteArt(plot);
+  if(!change)return '<div class="world-plot" style="'+style+'">'+current+'</div>';
+  const old=change.previous;
+  if(change.kind==="move")return '<div class="world-plot plot-moving" style="'+style+';--from-x:'+(old.x+flank)*scale+'%;--from-y:'+old.y+'%">'+current+'</div>';
+  const departing=old?'<div class="plot-before" style="--old-size:'+old.w/w*100+'%">'+spriteArt(old)+'</div>':'';
+  const scaffold='<img class="plot-construction" src="'+ASSETS+'construction-cover.webp" alt="" draggable="false">';
+  return '<div class="world-plot plot-building" style="'+style+'"><div class="plot-after">'+current+'</div>'+departing+scaffold+'</div>';
+}
+export function villageView(state,region,buildFrom,icon){
   const progress=campaign(state);
   const place=progress.regions.find(item=>item.id===region)??REGIONS[0];
-  const latest=unlocked?progress.stage:null;
   const flank=place.id==="river"?VALLEY_FLANK:0;
   const work=construction(place.id,progress.count);
   const buildings=scenePlots(place.id,progress.count);
+  const changes=plotChanges(place.id,buildFrom,progress.count);
   const options=progress.regions.map(r=>r.name).join(", ");
   const regionIndex=progress.regions.indexOf(place);
-  const focusPlot=latest?.plots.find(p=>p.x<5||p.x>95);
+  const focusPlot=[...changes.keys()].find(p=>p.x<5||p.x>95);
   return '<section class="village-view" data-world="'+place.id+'" data-days="'+progress.count+'" aria-label="'+place.name+'. Дней подряд: '+progress.count+'. '+(flank?'Долину можно прокручивать влево и вправо. ':'')+(progress.regions.length>1?'Районы: '+options+'.':'')+'" tabindex="0">'+
-    '<div class="world-viewport '+(flank?"wide":"")+'" '+(focusPlot?'data-focus-x="'+focusPlot.x+'"':'')+'><div class="world-land '+(latest ? "build-camera" : "")+'" style="--map-width:'+(100+2*flank)+'%" aria-hidden="true">'+
-    (flank?'<img class="terrain-extension west" src="'+ASSETS+'river-west.webp" alt="" draggable="false"><img class="terrain-extension east" src="'+ASSETS+'river-east.webp" alt="" draggable="false">':'')+
-    '<img class="terrain" src="'+ASSETS+place.id+'.webp" alt="" draggable="false"><canvas class="world-canvas"></canvas>'+
-    (work?sprite({...work,w:Math.min(work.w,25)*(.68+work.fraction*.32)},false,flank):'')+
-    buildings.map(plot=>sprite(plot,latest?.plots.includes(plot)??false,flank)).join("")+
+    '<div class="world-viewport '+(flank?"wide":"")+'" '+(focusPlot?'data-focus-x="'+focusPlot.x+'"':'')+'><div class="world-land" style="--map-width:'+(100+2*flank)+'%" aria-hidden="true">'+
+    '<img class="terrain" src="'+ASSETS+(flank?"river-valley":place.id)+'.webp" alt="" draggable="false"><canvas class="world-canvas"></canvas>'+
+    (work?sprite(work,null,flank):'')+
+    buildings.map(plot=>sprite(plot,changes.get(plot),flank)).join("")+
     (progress.count>=365?'<div class="festival"><i></i><i></i><i></i></div>':'')+'</div></div>'+
     '<div class="world-footer">'+(progress.regions.length>1?'<div class="region-dots" aria-hidden="true">'+progress.regions.map((item,i)=>'<i class="'+(i===regionIndex?'active':'')+'"></i>').join("")+'</div>':'')+
     '<div class="village-actions"><button type="button" class="village-btn mark-day" data-action="village-mark">'+icon(progress.today==="clear"?"check":"plus")+'<span>'+(progress.today==="clear"?"Отмечено":"Отметить")+'</span></button><button type="button" class="village-btn village-stats" data-action="insights">'+icon("chart")+'<span>Статистика</span></button></div></div></section>';
@@ -85,6 +91,7 @@ function pathAt(points,t){
 }
 function drawStatic(ctx,scene,days,offset){
   drawRoads(ctx,scene.roads,days,offset);
+  if(scene===SCENES.river)drawFences(ctx,days,offset);
   if(scene.channel&&scene.channel.day<=days){
     stroke(ctx,scene.channel.points,"#615842",23);
     stroke(ctx,scene.channel.points,"#2d8193",17);
@@ -157,17 +164,6 @@ export function mountVillage(root,onMove){
         ctx.fillStyle="#26302261";ctx.beginPath();ctx.ellipse(x*4.5,y*8,3,1.4,0,0,Math.PI*2);ctx.fill();
         ctx.fillStyle=["#933f2c","#516b83","#735d3e","#45664a"][i];ctx.fillRect(x*4.5-1.3,y*8-5+bob,2.6,4.8);
         ctx.fillStyle="#f4c595";ctx.beginPath();ctx.arc(x*4.5,y*8-6.5+bob,1.35,0,Math.PI*2);ctx.fill();
-      }
-    }
-    if(days>=6){
-      for(const [i,[x,y]] of scene.lights.entries()){
-        if(i>1&&days<10||i>4&&days<25)continue;
-        const glow=ctx.createRadialGradient(x*4.5,y*8-6,0,x*4.5,y*8-6,days>=345?15:10);
-        glow.addColorStop(0,"rgba(255,208,113,"+(.40+.13*Math.sin(animate*3+i))+")");
-        glow.addColorStop(1,"rgba(255,175,74,0)");
-        ctx.fillStyle=glow;ctx.fillRect(x*4.5-17,y*8-23,34,34);
-        ctx.fillStyle="#5b482b";ctx.fillRect(x*4.5-1,y*8-6,2,7);
-        ctx.fillStyle="#ffe5ac";ctx.fillRect(x*4.5-1.5,y*8-8,3,3);
       }
     }
     ctx.restore();

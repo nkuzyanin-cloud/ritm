@@ -37,13 +37,13 @@ test("corrupt histories and foreign trackers cannot be imported",()=>{
   assert.equal(migrate({version:1,tracker:"unrecognized",state:{entries:[]}},fresh()),null);
 });
 
-import {campaign,construction,scenePlots,MILESTONES} from "./village-model.js";
+import {campaign,construction,plotChanges,scenePlots,MILESTONES} from "./village-model.js";
 
 const confirmations=(n)=>Array.from({length:n},(_,i)=>make({day:moveDay(today,-i)}));
 test("a settlement grows from a single tent to multiple districts and a year finale",()=>{
   const s=fresh();
   assert.equal(campaign(s,today).count,0);
-  for(const [days,asset] of [[1,"camp"],[2,"frame"],[3,"house"],[14,"pier"],[30,"fountain"]]){
+  for(const [days,asset] of [[1,"camp"],[2,"frame"],[3,"house"],[14,"river-dock"],[30,"fountain"]]){
     s.events=confirmations(days);
     assert.equal(campaign(s,today).stage.day,days);
     assert.ok(scenePlots("river",days).some(p=>p.asset===asset));
@@ -85,15 +85,28 @@ test("intermediate days show advancing construction before land, paths and build
   assert.equal(construction("gardens",364).elapsed,19);
 });
 
-import {VALLEY_ROADS} from "./village-roads.js";
+import {roadSurface,VALLEY_ROADS} from "./village-roads.js";
 
 test("the early roads stay unpaved and city roads reach the new lateral plots",()=>{
-  assert.ok(VALLEY_ROADS.filter(road=>road.day<=14).every(road=>road.surface===undefined));
+  assert.ok(VALLEY_ROADS.filter(road=>road.day<30).every(road=>roadSurface(road,29)==="earth"));
+  assert.equal(roadSurface(VALLEY_ROADS[0],30),"stone");
+  assert.ok(VALLEY_ROADS.some(road=>road.day===25&&roadSurface(road,30)==="stone"));
   const city=scenePlots("river",30);
   assert.ok(city.some(plot=>plot.x<0));
   assert.ok(city.some(plot=>plot.x>100));
   assert.ok(VALLEY_ROADS.some(road=>road.points.at(-1)[0]<0));
-  assert.ok(VALLEY_ROADS.some(road=>road.surface==="stone"&&road.points.at(-1)[0]>100));
+  assert.ok(VALLEY_ROADS.some(road=>roadSurface(road,30)==="stone"&&road.points.at(-1)[0]>100));
+});
+
+test("a finished house replaces its old frame and the garden moves without a duplicate",()=>{
+  const house=[...plotChanges("river",2,3)].find(([plot])=>plot.id==="first-home");
+  assert.equal(house[1].kind,"replace");
+  assert.equal(house[1].previous.asset,"frame");
+  const garden=[...plotChanges("river",17,18)].find(([plot])=>plot.id==="kitchen-garden");
+  assert.equal(garden[1].kind,"move");
+  assert.ok(garden[0].x<garden[1].previous.x);
+  assert.equal(scenePlots("river",18).filter(plot=>plot.id==="kitchen-garden").length,1);
+  assert.equal(plotChanges("river",null,30).size,0);
 });
 
 test("valley road centerlines stay out of the main building footprints",()=>{

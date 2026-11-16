@@ -9,24 +9,25 @@ export const REGIONS=[
 
 // Coordinates are ground anchors in percent of the 9:16 scene.
 // Widths are percentages of the same scene. Objects are sorted by ground depth.
-const p=(asset,x,y,w,fx)=>({asset,x,y,w,fx});
+const p=(asset,x,y,w,fx,id)=>({asset,x,y,w,fx,id});
+export const PAVING_DAY=30;
 export const MILESTONES=[
   [1,"Лагерь у реки","river",[p("camp",36,78,30,"fire")]],
-  [2,"Каркас дома","river",[p("frame",30,60,34)]],
-  [3,"Первый дом","river",[p("house",30,60,34,"home")]],
-  [4,"Огород","river",[p("garden",14,67,23)]],
+  [2,"Каркас дома","river",[p("frame",30,60,34,null,"first-home")]],
+  [3,"Первый дом","river",[p("house",30,60,34,"home","first-home")]],
+  [4,"Огород","river",[p("garden",14,67,23,null,"kitchen-garden")]],
   [5,"Колодец","river",[p("well",27,72,17)]],
-  [6,"Дорога и фонари","river",[]],
+  [6,"Тропы и ограды","river",[]],
   [7,"Первые соседи","river",[p("house",5,48,27,"home"),p("house",23,47,28,"home")]],
   [10,"Мост на другой берег","river",[p("bridge",54,56,29)]],
   [12,"Мастерская","river",[p("workshop",77,52,32,"home")]],
-  [14,"Пристань","river",[p("pier",66,76,22,"dock")]],
-  [18,"Рыночная площадь","river",[p("market",-12,77,31)]],
-  [21,"Мельница и поля","river",[p("mill",75,37,23,"mill"),p("garden",88,32,21)]],
+  [14,"Речная пристань","river",[p("river-dock",68,77,19)]],
+  [18,"Рыночная площадь","river",[p("market",-12,77,31),p("garden",-8,66,23,null,"kitchen-garden")]],
+  [21,"Мельница и пшеничное поле","river",[p("wheat-field",85,35,31),p("mill",74,41,23,"mill")]],
   [25,"Набережная","river",[]],
-  [30,"Город у реки","river",[p("fountain",111,67,22,"fountain"),p("house",112,55,23,"home"),p("house",-17,43,25,"home")]],
-  [40,"Верфь","river",[p("shipyard",89,87,27)]],
-  [50,"Маяк","river",[p("lighthouse",84,27,18,"light")]],
+  [PAVING_DAY,"Каменные улицы","river",[p("fountain",111,67,22,"fountain"),p("house",112,55,23,"home"),p("house",-17,43,25,"home")]],
+  [40,"Верфь","river",[p("shipyard",79,90,27)]],
+  [50,"Маяк у излучины","river",[p("lighthouse",62,26,18,"light")]],
   [60,"Корабль к острову","island",[p("ship",16,91,24,"ship")]],
   [70,"Островной причал","island",[p("pier",29,85,26,"dock")]],
   [80,"Рыбацкая деревня","island",[p("house",53,63,30,"home"),p("house",69,72,30,"home"),p("well",76,80,15)]],
@@ -74,10 +75,25 @@ export function campaign(state,today=dateKey()){
 }
 
 export function scenePlots(region,days){
-  return MILESTONES.filter(m=>m.region===region&&m.day<=days).flatMap(m=>{
-    if((m.day===2&&days>=3)||(m.day===1&&days>=6))return [];
-    return m.plots;
-  }).sort((a,b)=>a.y-b.y);
+  const plots=new Map();
+  for(const m of MILESTONES){
+    if(m.region!==region||m.day>days||(m.day===1&&days>=6))continue;
+    for(const plot of m.plots)plots.set(plot.id??plot,plot);
+  }
+  return [...plots.values()].sort((a,b)=>a.y-b.y);
+}
+
+export function plotChanges(region,from,to){
+  if(from==null||from>=to)return new Map();
+  const before=scenePlots(region,from);
+  const previousById=new Map(before.filter(p=>p.id).map(p=>[p.id,p]));
+  const work=construction(region,from);
+  return new Map(scenePlots(region,to).filter(plot=>!before.includes(plot)).map(plot=>{
+    const previous=previousById.get(plot.id);
+    if(previous&&previous.asset===plot.asset)return [plot,{kind:"move",previous}];
+    const old=previous??(work?.x===plot.x&&work?.y===plot.y?work:null);
+    return [plot,{kind:old?"replace":"build",previous:old}];
+  }));
 }
 
 export function construction(region,days){
@@ -94,7 +110,7 @@ export function construction(region,days){
   const plot=next.plots[0];
   if(!plot)return supply;
   if(plot.asset==="bridge")return {...supply,x:40,y:55};
-  if(plot.asset==="pier")return {...supply,x:73,y:plot.y};
+  if(plot.asset==="pier"||plot.asset==="river-dock")return {...supply,x:73,y:plot.y};
   if(["ship","train","tram","balloons"].includes(plot.asset))return supply;
   return {...plot,fx:null,fraction,elapsed,asset:fraction>.48?"frame":"foundation"};
 }

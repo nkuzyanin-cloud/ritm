@@ -1,3 +1,5 @@
+import {PAVING_DAY} from "./village-model.js";
+
 // Coordinates use the original valley's width. Negative and >100 values
 // describe the western and eastern extensions of the same connected map.
 export const VALLEY_ROADS = [
@@ -8,16 +10,30 @@ export const VALLEY_ROADS = [
   {day:10,points:[[41,56],[42,53],[44,50.4],[46,50.3]]},
   {day:10,points:[[64,50.4],[69,52.5],[76,56],[85,55]]},
   {day:12,points:[[85,55],[85,53],[83.6,49.3]],width:7},
-  {day:14,points:[[85,55],[89,61],[87,68],[79,73],[71,76],[67,76]]},
+  {day:14,points:[[85,55],[89,61],[87,66],[82,68],[74.6,69.5]]},
   {day:18,points:[[40,84],[31,82],[20,81],[8,80],[-1,78],[-5,74.7]],width:12},
-  {day:21,points:[[87,58],[93,52],[96,46],[94,40],[88,38],[82,37],[79.8,35.8]]},
-  {day:25,points:[[79,73],[71,76],[67,76]],surface:"stone",width:13},
+  {day:21,points:[[87,58],[92,53],[94,47],[91,43],[84,42],[78.4,39.5]]},
+  {day:21,points:[[91,43],[94,39],[93,35],[91,33.8]],pave:false,width:7},
+  {day:25,points:[[82,68],[77.5,73],[73.5,78],[72,83],[74,86]],width:11},
   {day:30,points:[[12,52],[0,50],[-8,47],[-12,44],[-12.5,41.5]],width:9},
-  {day:30,points:[[89,61],[96,63],[103,66],[108,68],[111,68.8]],surface:"stone",width:15},
-  {day:30,points:[[104,67],[109,64],[114,60],[118,56],[117,53]],surface:"stone",width:9},
-  {day:40,points:[[73,75.5],[76,80],[79,87],[85,90],[91,88]],width:10},
-  {day:50,points:[[94,40],[97,34],[94,29],[87,28]],width:8},
+  {day:30,points:[[89,61],[96,63],[103,66],[108,67.8],[111.2,67]],width:15},
+  {day:30,points:[[104,66.5],[109,64],[114,60],[118,56],[117,53]],width:9},
+  {day:40,points:[[74,86],[75,88],[77,90]],width:10},
+  {day:50,points:[[84,42],[78,43],[72,44],[66,42],[63,38],[61,33],[62,28],[63.4,25.4]],width:8},
 ];
+
+export const VALLEY_FENCES = [
+  {day:6,points:[[46,74],[46.8,71.6],[46.3,69.2]]},
+  {day:7,points:[[16,49.4],[19,48.6],[21,48.6]]},
+  {day:14,points:[[77.2,66.5],[79.3,66.3],[82.4,65.9]]},
+  {day:18,points:[[-16,67.1],[-10,68.1],[-4,68.1],[1,66.8]]},
+  {day:21,points:[[75,35.1],[78,35.9],[83,37],[88,37.4],[90.8,36.9]]},
+  {day:25,points:[[68.5,79],[68.8,82],[69.6,84.3]]},
+];
+
+export function roadSurface(road,days){
+  return days>=PAVING_DAY&&road.pave!==false?"stone":"earth";
+}
 
 const point = ([x,y],dx)=>({x:x*4.5+dx,y:y*8});
 const hash=(n)=>((Math.imul(n,0x45d9f3b)>>>0)%1009)/1009;
@@ -113,7 +129,7 @@ function textureFor(surface){
 }
 export function drawRoads(ctx,roads,days,dx=0){
   for(const surface of ["earth","stone"]){
-    const active=roads.filter(r=>r.day<=days&&(r.surface??"earth")===surface);
+    const active=roads.filter(r=>r.day<=days&&roadSurface(r,days)===surface);
     if(!active.length)continue;
     const path=shapeFor(active,dx);
     ctx.save();
@@ -125,4 +141,31 @@ export function drawRoads(ctx,roads,days,dx=0){
     ctx.fill(path);
     ctx.restore();
   }
+}
+
+export function drawFences(ctx,days,offset){
+  const visible=VALLEY_FENCES.filter(fence=>fence.day<=days);
+  ctx.save();
+  ctx.lineCap="round";
+  for(const fence of visible){
+    const posts=fence.points.map(p=>point(p,offset));
+    const line=(points,color,width,y)=>{
+      ctx.beginPath();
+      points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y+y):ctx.moveTo(p.x,p.y+y));
+      ctx.lineWidth=width;
+      ctx.strokeStyle=color;
+      ctx.stroke();
+    };
+    line(posts,"#322a2052",3,1);
+    for(const rail of [-5,-10]){
+      line(posts,"#584225",3.8,rail);
+      line(posts,"#b08855",1.2,rail-1);
+    }
+    for(const {x,y} of posts){
+      ctx.fillStyle="#4b3b26";ctx.fillRect(x-2.4,y-13,4.8,13);
+      ctx.fillStyle="#ba9461";ctx.fillRect(x-2.4,y-13,2.1,11.5);
+      ctx.fillStyle="#dec193";ctx.fillRect(x-2.4,y-13,4.8,1.3);
+    }
+  }
+  ctx.restore();
 }

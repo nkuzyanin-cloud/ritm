@@ -42,7 +42,7 @@ if(!MODES.includes(mode)) mode="vape";
 let day=currentDay();
 let page="today";
 let region="river";
-let playBuild=false;
+let buildFrom=null;
 let resetKind="fail";
 let toastTimer,undo,timer,liveMinute="";
 function notify(message,rollback) {
@@ -62,7 +62,7 @@ function save(next,message,allowUndo=true) {
   const built=mode==="vape"&&after.stage&&after.count>before.count&&after.stage.day!==before.stage?.day;
   if(built){
     region=after.stage.region;
-    playBuild=true;
+    buildFrom=before.count;
   }
   if(mode==="vape"&&after.count===0)region="river";
   render();
@@ -114,7 +114,7 @@ function todayView() {
   const goalText=mode==="water"&&goal?(n>=goal?"Цель достигнута":"Осталось "+fmt.format(goal-n)+" мл"):"";
   const consumed= mode==="water"?n:counted(data,mode,today,"use");
   const caption=mode==="water"?"":(m.days.filter(d=>dayStatus(data,mode,d)==="clear").length+" из 7 подтверждено");
-  if(mode==="vape")return villageView(data,region,playBuild,icon);
+  if(mode==="vape")return villageView(data,region,buildFrom,icon);
   return '<div class="headline"><div><h1>'+t.title+'</h1></div><button class="top-link" data-action="insights">'+icon("chart")+'<span>Прогресс</span></button></div>'+
     '<section class="hero"><div class="hero-copy"><span class="metric-label">'+t.counter+'</span><div class="metric"><b id="counter">'+value+'</b><span>'+unit+'</span></div>'+
       (note?'<p class="counter-note" id="counter-note">'+note+'</p>':'')+
@@ -175,7 +175,7 @@ function render() {
     });
     if(focused)world.focus();
   }else stopVillage();
-  playBuild=false;
+  buildFrom=null;
 }
 function setPage(next) {
   page=next;
